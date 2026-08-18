@@ -1,0 +1,20 @@
+{
+  "schemaVersion": 1,
+  "description": "觉知岛运营助手 - 通过 DDN Hub API 上传文章、管理课程、提交反馈等",
+  "tags": [
+    "ddn-hub",
+    "juezhidao",
+    "operations",
+    "cli"
+  ],
+  "version": "0.1.0",
+  "kind": "node",
+  "sourceManifests": [
+    {
+      "relPath": "package.json",
+      "rawVersion": "0.1.0"
+    }
+  ],
+  "generatedAt": "2026-07-21T06:27:14.118Z",
+  "generatorVersion": "1.0.30-pi"
+}

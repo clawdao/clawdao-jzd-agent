@@ -1,0 +1,29 @@
+{
+  "name": "clawdao-jzd-ops",
+  "version": "0.1.0",
+  "description": "觉知岛运营助手 — DDN Hub SaaS 平台 CLI（文章/课程/应用市场/反馈管理）",
+  "type": "module",
+  "bin": {
+    "jzd-ops": "./bin/jzd-ops.mjs"
+  },
+  "scripts": {
+    "start": "node ./bin/jzd-ops.mjs",
+    "test": "node --test",
+    "pack:dry-run": "npm pack --dry-run"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "files": [
+    "bin",
+    "lib",
+    "README.md"
+  ],
+  "keywords": [
+    "ddn-hub",
+    "juezhidao",
+    "operations",
+    "cli"
+  ],
+  "license": "MIT"
+}
