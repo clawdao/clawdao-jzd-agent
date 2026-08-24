@@ -2,7 +2,7 @@
 
 /**
  * 觉知岛运营助手 CLI
- * 用法: jzd-ops <command> [options]
+ * 用法: jzd <command> [options]
  *
  * 命令:
  *   article    文章管理（上传、列表、发布）
@@ -48,11 +48,11 @@ const COMMANDS = {
 function printUsage() {
   console.log(`
 ╔══════════════════════════════════════════╗
-║       觉知岛运营助手 (jzd-ops)          ║
+║       觉知岛运营助手 (jzd)          ║
 ║     DDN Hub 运营操作 CLI 工具           ║
 ╚══════════════════════════════════════════╝
 
-用法: jzd-ops <command> [子命令] [选项]
+用法: jzd <command> [子命令] [选项]
 
 命令:
   article list        列出文章
@@ -89,14 +89,14 @@ function printUsage() {
   DDN_HUB_DAO_ID      DAO ID
 
 示例:
-  jzd-ops health
-  jzd-ops article list --postType article
-  jzd-ops article create --title "标题" --content "内容"
-  jzd-ops article publish 42
-  jzd-ops article upload --title "T" --content "C" --publish
-  jzd-ops course list
-  jzd-ops course create --title "课程名"
-  jzd-ops feedback submit --title "建议" --content "详情"
+  jzd health
+  jzd article list --postType article
+  jzd article create --title "标题" --content "内容"
+  jzd article publish 42
+  jzd article upload --title "T" --content "C" --publish
+  jzd course list
+  jzd course create --title "课程名"
+  jzd feedback submit --title "建议" --content "详情"
 `);
 }
 
@@ -199,12 +199,12 @@ async function handleArticle(args) {
       console.log(`\n✅ 草稿已创建 (ID: ${id})`);
       console.log(`   标题: ${opts.title}`);
       console.log(`   类型: ${opts.postType || 'article'}`);
-      console.log(`   发布: jzd-ops article publish ${id}\n`);
+      console.log(`   发布: jzd article publish ${id}\n`);
       break;
     }
     case 'publish': {
       const postId = args[1];
-      if (!postId || isNaN(parseInt(postId))) return console.error('❌ 请指定文章 ID: jzd-ops article publish <postId>');
+      if (!postId || isNaN(parseInt(postId))) return console.error('❌ 请指定文章 ID: jzd article publish <postId>');
       const result = await article.publish(parseInt(postId));
       if (!result.ok) return printError(result);
       console.log(`\n✅ 文章 ${postId} 已发布\n`);
@@ -231,10 +231,10 @@ async function handleArticle(args) {
     default:
       console.error(`
 文章管理子命令:
-  jzd-ops article list [--postType article] [--status draft] [--search keyword]
-  jzd-ops article create --title "标题" [--content "内容"] [--postType article]
-  jzd-ops article publish <postId>
-  jzd-ops article upload --title "标题" --content "内容" [--publish]
+  jzd article list [--postType article] [--status draft] [--search keyword]
+  jzd article create --title "标题" [--content "内容"] [--postType article]
+  jzd article publish <postId>
+  jzd article upload --title "标题" --content "内容" [--publish]
 `);
   }
 }
@@ -290,12 +290,12 @@ async function handleCourse(args) {
       console.log(`\n✅ 课程已创建 (ID: ${id})`);
       console.log(`   标题: ${opts.title}`);
       console.log(`   状态: ${opts.publish ? '已发布' : '草稿'}`);
-      console.log(`   发布: jzd-ops course publish ${id}\n`);
+      console.log(`   发布: jzd course publish ${id}\n`);
       break;
     }
     case 'publish': {
       const courseId = args[1];
-      if (!courseId) return console.error('❌ 请指定课程 ID: jzd-ops course publish <courseId>');
+      if (!courseId) return console.error('❌ 请指定课程 ID: jzd course publish <courseId>');
       const result = await course.publish(courseId);
       if (!result.ok) return printError(result);
       console.log(`\n✅ 课程 ${courseId} 已发布\n`);
@@ -324,11 +324,11 @@ async function handleCourse(args) {
     default:
       console.error(`
 课程管理子命令:
-  jzd-ops course list [--keyword xxx] [--status published]
-  jzd-ops course create --title "课程名" [--description "描述"] [--price 0] [--publish]
-  jzd-ops course publish <courseId>
-  jzd-ops course upload --title "课程名" --description "描述" [--publish]
-  jzd-ops course categories
+  jzd course list [--keyword xxx] [--status published]
+  jzd course create --title "课程名" [--description "描述"] [--price 0] [--publish]
+  jzd course publish <courseId>
+  jzd course upload --title "课程名" --description "描述" [--publish]
+  jzd course categories
 `);
   }
 }
@@ -372,8 +372,8 @@ async function handleFeedback(args) {
     default:
       console.error(`
 反馈子命令:
-  jzd-ops feedback submit --title "反馈标题" [--content "详情"] [--type suggestion|bug|feature]
-  jzd-ops feedback list [--type suggestion]
+  jzd feedback submit --title "反馈标题" [--content "详情"] [--type suggestion|bug|feature]
+  jzd feedback list [--type suggestion]
 `);
   }
 }
@@ -437,7 +437,7 @@ async function handleMarketplace(args) {
     }
     case 'get': {
       const uuid = args[1];
-      if (!uuid) return console.error('❌ 请指定资产 UUID: jzd-ops marketplace get <uuid>');
+      if (!uuid) return console.error('❌ 请指定资产 UUID: jzd marketplace get <uuid>');
       const result = await mp.get(uuid);
       if (!result.ok) return printError(result);
       const a = result.data || {};
@@ -486,14 +486,14 @@ async function handleMarketplace(args) {
       console.log(`   UUID: ${a.uuid || result.data?.uuid}`);
       console.log(`   名称: ${opts.name}`);
       console.log(`   类型: ${opts.type} | Slug: ${opts.slug || ''}`);
-      console.log(`   上架: jzd-ops marketplace publish ${a.uuid || ''}\n`);
+      console.log(`   上架: jzd marketplace publish ${a.uuid || ''}\n`);
       break;
     }
     case 'update': {
       const uuid = args[1];
-      if (!uuid) return console.error('❌ 请指定资产 UUID: jzd-ops marketplace update <uuid> --name "新名称"');
+      if (!uuid) return console.error('❌ 请指定资产 UUID: jzd marketplace update <uuid> --name "新名称"');
       const updates = {};
-      for (const f of ['type', 'slug', 'name', 'description', 'icon', 'category', 'author', 'version', 'sourceUrl', 'configUrl', 'priceType']) {
+      for (const f of ['type', 'slug', 'name', 'description', 'icon', 'category', 'author', 'version', 'sourceUrl', 'configUrl', 'priceType', 'license']) {
         if (opts[f] !== undefined) updates[f] = opts[f];
       }
       if (opts.price !== undefined) updates.price = parseFloat(opts.price);
@@ -501,8 +501,21 @@ async function handleMarketplace(args) {
       if (opts.tags !== undefined) updates.tags = opts.tags.split(',').map((s) => s.trim()).filter(Boolean);
       if (opts.featured === 'true' || opts.featured === true) updates.isFeatured = true;
       if (opts.featured === 'false') updates.isFeatured = false;
+      // README 支持两种方式：直接传 markdown 文本，或传文件路径（@file 语法）
+      if (opts.readme !== undefined) {
+        const v = String(opts.readme);
+        if (v.startsWith('@')) {
+          const fp = v.slice(1);
+          if (!existsSync(fp)) {
+            return console.error(`❌ README 文件不存在: ${fp}`);
+          }
+          updates.readme = readFileSync(fp, 'utf-8');
+        } else {
+          updates.readme = v;
+        }
+      }
       if (Object.keys(updates).length === 0) {
-        return console.error('❌ 没有需要更新的字段，例如: --name / --description / --price / --category');
+        return console.error('❌ 没有需要更新的字段，例如: --name / --description / --price / --category / --readme / --license');
       }
       const result = await mp.update(uuid, updates);
       if (!result.ok) return printError(result);
@@ -514,7 +527,7 @@ async function handleMarketplace(args) {
     case 'draft':
     case 'archive': {
       const uuid = args[1];
-      if (!uuid) return console.error(`❌ 请指定资产 UUID: jzd-ops marketplace ${sub} <uuid>`);
+      if (!uuid) return console.error(`❌ 请指定资产 UUID: jzd marketplace ${sub} <uuid>`);
       const statusMap = { publish: 'active', unpublish: 'inactive', draft: 'draft', archive: 'archived' };
       const target = statusMap[sub];
       const result = await mp.updateStatus(uuid, target);
@@ -526,7 +539,7 @@ async function handleMarketplace(args) {
     case 'featured':
     case 'unfeatured': {
       const uuid = args[1];
-      if (!uuid) return console.error(`❌ 请指定资产 UUID: jzd-ops marketplace ${sub} <uuid>`);
+      if (!uuid) return console.error(`❌ 请指定资产 UUID: jzd marketplace ${sub} <uuid>`);
       const on = sub === 'featured';
       const result = await mp.setFeatured(uuid, on);
       if (!result.ok) return printError(result);
@@ -535,7 +548,7 @@ async function handleMarketplace(args) {
     }
     case 'remove': {
       const uuid = args[1];
-      if (!uuid) return console.error('❌ 请指定资产 UUID: jzd-ops marketplace remove <uuid>');
+      if (!uuid) return console.error('❌ 请指定资产 UUID: jzd marketplace remove <uuid>');
       const confirm = opts.yes === true || opts.yes === 'true';
       if (!confirm) {
         console.log('\n⚠️  删除不可恢复，确认请加 --yes');
@@ -559,18 +572,18 @@ async function handleMarketplace(args) {
     default:
       console.error(`
 应用市场子命令:
-  jzd-ops marketplace list [--type app|skill|mcp|prompt|employee|plugin|template] [--status] [--keyword] [--sort] [--admin]
-  jzd-ops marketplace stats
-  jzd-ops marketplace get <uuid>
-  jzd-ops marketplace create --name "名称" --type app --slug xxx [--description] [--icon] [--category] [--priceType free|points|paid] [--price] [--featured]
-  jzd-ops marketplace update <uuid> --name "新名称" [--description] [--price] [--category] ...
-  jzd-ops marketplace publish <uuid>    上架
-  jzd-ops marketplace unpublish <uuid>  下架
-  jzd-ops marketplace draft <uuid>      转草稿
-  jzd-ops marketplace featured <uuid>   设置精选
-  jzd-ops marketplace unfeatured <uuid> 取消精选
-  jzd-ops marketplace remove <uuid> --yes  删除
-  jzd-ops marketplace categories
+  jzd marketplace list [--type app|skill|mcp|prompt|employee|plugin|template] [--status] [--keyword] [--sort] [--admin]
+  jzd marketplace stats
+  jzd marketplace get <uuid>
+  jzd marketplace create --name "名称" --type app --slug xxx [--description] [--icon] [--category] [--priceType free|points|paid] [--price] [--featured]
+  jzd marketplace update <uuid> --name "新名称" [--description] [--price] [--category] ...
+  jzd marketplace publish <uuid>    上架
+  jzd marketplace unpublish <uuid>  下架
+  jzd marketplace draft <uuid>      转草稿
+  jzd marketplace featured <uuid>   设置精选
+  jzd marketplace unfeatured <uuid> 取消精选
+  jzd marketplace remove <uuid> --yes  删除
+  jzd marketplace categories
 `);
   }
 }

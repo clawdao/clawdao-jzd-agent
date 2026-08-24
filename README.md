@@ -1,4 +1,4 @@
-# clawdao-jzd-ops · 觉知岛运营助手
+# clawdao-jzd-agent · 觉知岛智能体
 
 > 通过命令行操作觉知岛（DDN Hub）SaaS 平台的运营工具：**文章 / 课程 / 应用市场 / 反馈 一体化管理**。
 
@@ -45,35 +45,35 @@ export DDN_HUB_DAO_ID=your_dao_id
 
 ```bash
 # 本地使用
-node bin/jzd-ops.mjs --help
+node bin/jzd.mjs --help
 
 # 或全局 link
 npm link
-jzd-ops --help
+jzd --help
 ```
 
 ## 💻 使用示例
 
 ```bash
 # 健康检查
-jzd-ops health
+jzd health
 
 # 文章管理
-jzd-ops article list --postType article --status published
-jzd-ops article upload --title "标题" --content "内容" --publish
+jzd article list --postType article --status published
+jzd article upload --title "标题" --content "内容" --publish
 
 # 课程管理
-jzd-ops course list
-jzd-ops course create --title "课程名称" --price 0
+jzd course list
+jzd course create --title "课程名称" --price 0
 
 # 应用市场
-jzd-ops marketplace stats                        # 市场统计
-jzd-ops marketplace list --type app              # 浏览应用
-jzd-ops marketplace create --name "应用" --type app --slug xxx --priceType free
-jzd-ops marketplace publish <uuid>               # 上架
+jzd marketplace stats                        # 市场统计
+jzd marketplace list --type app              # 浏览应用
+jzd marketplace create --name "应用" --type app --slug xxx --priceType free
+jzd marketplace publish <uuid>               # 上架
 
 # 反馈
-jzd-ops feedback submit --title "建议" --content "详情"
+jzd feedback submit --title "建议" --content "详情"
 ```
 
 ## 📁 目录结构
@@ -81,7 +81,7 @@ jzd-ops feedback submit --title "建议" --content "详情"
 ```
 .
 ├── bin/
-│   └── jzd-ops.mjs          CLI 主入口（自动加载 .env）
+│   └── jzd.mjs          CLI 主入口（自动加载 .env）
 ├── lib/
 │   ├── client.mjs            API 客户端（HTTP 封装）
 │   ├── articles.mjs          文章模块
@@ -99,7 +99,7 @@ jzd-ops feedback submit --title "建议" --content "详情"
 本项目是 `ddn-hub-mcp` 的**伴生 CLI 工具**：
 
 - `ddn-hub-mcp` — MCP 协议服务器，供 AI Agent（如 Codex CLI）调用
-- `jzd-ops` — 命令行工具，供运营人员直接使用
+- `jzd` — 命令行工具，供运营人员直接使用
 
 两者共享相同的 API 客户端逻辑和接口定义。
 
