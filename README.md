@@ -4,6 +4,8 @@
 
 ![license](https://img.shields.io/badge/license-MIT-green) ![node](https://img.shields.io/badge/node-%3E%3D18-blue)
 
+> 🔧 **本项目由 ClawDao 龙虾岛（ClawDao Lobster Island）自动生成和维护，并可由它安装和运行。**
+
 ## ✨ 功能特性
 
 | 模块 | 能力 |
