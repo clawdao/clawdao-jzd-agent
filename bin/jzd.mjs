@@ -663,7 +663,9 @@ async function handleVersion(args) {
       if (!productId) { console.error('❌ 需要 --product-key 或 --product-id'); process.exit(2); }
       const releaseNotes = opts.notes
         ? { zh: [opts.notes], en: [] }
-        : undefined;
+        : (opts.notesFile
+          ? { zh: [readFileSync(opts.notesFile, 'utf-8')], en: [] }
+          : undefined);
       const result = await vm.create({
         productId,
         version: opts.version,
@@ -741,7 +743,11 @@ async function handleVersion(args) {
       const productKey = opts.productKey || 'clawdao';
       const productId = opts.productId || KNOWN_PRODUCT_IDS[productKey];
       if (!productId) { console.error(`❌ 未知 productKey "${productKey}"，请用 --product-id`); process.exit(2); }
-      const releaseNotes = opts.notes ? { zh: [opts.notes], en: [] } : undefined;
+      const releaseNotes = opts.notes
+        ? { zh: [opts.notes], en: [] }
+        : opts.notesFile
+          ? { zh: [readFileSync(opts.notesFile, 'utf-8')], en: [] }
+          : undefined;
       console.log(`🚀 一键发布流程`);
       console.log(`   productKey: ${productKey}`);
       console.log(`   version:    ${opts.version}`);
@@ -787,10 +793,11 @@ async function handleVersion(args) {
   jzd version create                     创建版本
        --product-key clawdao --version 1.0.27
        --notes '<h2>v1.0.27 更新说明</h2>...' （HTML 字符串）
+       [--notes-file <path>] （从文件读取，适合长 md）
        [--title '标题'] [--prerelease true]
   jzd version release                    一键发布（创建 + 同步 S3）
        --product-key clawdao --version 1.0.27
-       --notes '...' [--no-sync]
+       --notes '...' [--notes-file <path>] [--no-sync]
   jzd version sync-s3                    同步 S3 资产到版本（“同步s3”按钮）
        --product-key clawdao --version 1.0.27
        [--prefix path/] [--dryRun true]

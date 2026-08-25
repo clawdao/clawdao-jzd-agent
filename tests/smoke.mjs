@@ -100,6 +100,22 @@ try {
   else fail('syncFromS3 validation', '应拒绝空参数');
 } catch (e) { fail('syncFromS3 validation', e); }
 
+// platformToken 加载
+try {
+  const client = new JzdClient({ authToken: 'dao-tok', platformToken: 'platform-tok' });
+  const snap = client.getRuntimeSnapshot();
+  if (snap.hasAuthToken && snap.hasPlatformToken) ok('JzdClient 同时加载 auth + platform token');
+  else fail('platform token loading', `hasAuth=${snap.hasAuthToken} hasPlatform=${snap.hasPlatformToken}`);
+} catch (e) { fail('JzdClient platform token', e); }
+
+// release() 走完整流程（不用真发布，只验证 schema）
+try {
+  const vm = new VersionManager({ baseUrl: 'http://localhost' });
+  const r = await vm.release({});
+  if (!r.ok && r.error && r.error.kind === 'validation') ok('release 拒绝空 productKey');
+  else fail('release validation', '应拒绝');
+} catch (e) { fail('release validation', e); }
+
 // 总结
 console.log(`\n${failed === 0 ? '🎉' : '⚠️'}  ${passed} passed, ${failed} failed`);
 process.exit(failed === 0 ? 0 : 1);
