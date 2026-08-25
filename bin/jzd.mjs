@@ -36,12 +36,14 @@ import { ArticleManager } from '../lib/articles.mjs';
 import { CourseManager } from '../lib/courses.mjs';
 import { FeedbackManager } from '../lib/feedback.mjs';
 import { MarketplaceManager, ASSET_TYPES, ASSET_TYPE_LABELS, ASSET_STATUSES, PRICE_TYPE_LABELS } from '../lib/marketplace.mjs';
+import { VersionManager, KNOWN_PRODUCT_IDS } from '../lib/versions.mjs';
 
 const COMMANDS = {
   article: '文章管理：list, create, publish, delete',
   course: '课程管理：list, create, publish, delete, categories',
   feedback: '提交反馈或查看反馈列表',
   marketplace: '应用市场：list, stats, get, create, update, publish, remove, categories',
+  version: '产品版本发布：list, get, create, release, sync-s3, publish, manifest, remove, summary, health',
   health: '检查 API 服务状态',
 };
 
@@ -81,6 +83,17 @@ function printUsage() {
   marketplace remove  <uuid> 删除资产（仅 draft）
   marketplace categories 查看类目聚合
 
+  version list         列出产品版本（--product-key clawdao）
+  version get          <uuid> 查看版本详情
+  version create       创建版本（--notes '<h2>更新说明</h2>...'）
+  version release      一键发布（创建 + 同步 S3）
+  version sync-s3      从 S3 同步资产到版本（--product-key --version）
+  version publish      <uuid> 发布版本
+  version manifest     <uuid> Manifest 预览（--action generate）
+  version summary      --product-key <key>  发布摘要
+  version health       Download-assets 健康检查
+  version remove       <uuid> 删除版本（--force 硬删）
+
   health              检查 API 连接
 
 环境变量:
@@ -106,10 +119,14 @@ function parseArgs(args) {
     const arg = args[i];
     if (arg.startsWith('--')) {
       const key = arg.slice(2);
+      const camelKey = key.replace(/-([a-z])/g, (_, c) => c.toUpperCase());
       if (i + 1 < args.length && !args[i + 1].startsWith('--')) {
-        options[key] = args[++i];
+        options[key] = args[i + 1];
+        options[camelKey] = args[i + 1];
+        i++;
       } else {
         options[key] = true;
+        options[camelKey] = true;
       }
     }
   }
@@ -145,6 +162,9 @@ async function main() {
       break;
     case 'marketplace':
       await handleMarketplace(args.slice(1));
+      break;
+    case 'version':
+      await handleVersion(args.slice(1));
       break;
     case 'health':
       await handleHealth();
@@ -609,7 +629,204 @@ async function handleHealth() {
   console.log();
 }
 
+// ===== 产品版本发布 =====
+
+async function handleVersion(args) {
+  const subcommand = args[0];
+  const opts = parseArgs(args.slice(1));
+  const client = new JzdClient();
+  const vm = new VersionManager(client);
+
+  switch (subcommand) {
+    case 'list': {
+      const productKey = opts.productKey || opts.product;
+      const productId = opts.productId || (productKey && KNOWN_PRODUCT_IDS[productKey]);
+      if (!productKey && !productId) {
+        console.error('❌ 需要 --product-key 或 --product-id（已知 productKey：' + Object.keys(KNOWN_PRODUCT_IDS).join(', ') + '）');
+        process.exit(2);
+      }
+      const result = await vm.list({ productId, productKey, status: opts.status, releaseSource: opts.source, page: parseInt(opts.page || '1'), pageSize: parseInt(opts.pageSize || '20') });
+      printListResult(result, '版本', (v) => `  [${v.version || '?'}] ${v.title || ''}\n        id=${v.id} | status=${v.status} | isLatest=${v.isLatest} | assets=${(v.assets||[]).length}\n        releaseAt=${v.releaseAt || v.createdAt || ''}`);
+      break;
+    }
+    case 'get': {
+      if (!opts.id) { console.error('❌ 需要 --id <versionId>'); process.exit(2); }
+      const result = await vm.get(opts.id);
+      if (result.ok) printDetailResult(result, '版本', (v) => `  ${v.version} (${v.status}) - isLatest=${v.isLatest}\n  UUID: ${v.id}\n  productId: ${v.productId}\n  releaseAt: ${v.releaseAt}\n  assets: ${(v.assets||[]).length} 个`);
+      else printError(result);
+      break;
+    }
+    case 'create': {
+      // 整理版本字段 → POST 创建
+      if (!opts.version) { console.error('❌ 需要 --version（如 1.0.27）'); process.exit(2); }
+      const productId = opts.productId || (opts.productKey && KNOWN_PRODUCT_IDS[opts.productKey]);
+      if (!productId) { console.error('❌ 需要 --product-key 或 --product-id'); process.exit(2); }
+      const releaseNotes = opts.notes
+        ? { zh: [opts.notes], en: [] }
+        : undefined;
+      const result = await vm.create({
+        productId,
+        version: opts.version,
+        title: opts.title,
+        releaseNotes,
+        isPrerelease: opts.prerelease === 'true' || opts.prerelease === true,
+        isLatest: opts.latest !== 'false' && opts.latest !== false,
+        releaseSource: opts.source || 'manual',
+      });
+      if (result.ok) {
+        console.log(`✅ 版本创建成功`);
+        console.log(`   id:      ${result.data?.id}`);
+        console.log(`   version: ${result.data?.version}`);
+        console.log(`   status:  ${result.data?.status || 'draft'}`);
+      } else {
+        printError(result);
+      }
+      break;
+    }
+    case 'sync-s3': {
+      // 同步 S3 资产到产品版本（“同步s3”按钮后端）
+      if (!opts.productKey) { console.error('❌ 需要 --product-key（如 clawdao）'); process.exit(2); }
+      if (!opts.version) { console.error('❌ 需要 --version（如 1.0.27）'); process.exit(2); }
+      console.log(`☁️  同步 S3 → productKey=${opts.productKey} version=${opts.version}${opts.dryRun === 'true' ? ' (DRY-RUN)' : ''}`);
+      const result = await vm.syncFromS3({
+        productKey: opts.productKey,
+        version: opts.version,
+        prefix: opts.prefix,
+        dryRun: opts.dryRun === 'true' || opts.dryRun === true,
+      });
+      if (result.ok) {
+        console.log(`✅ S3 同步成功`);
+        console.log(`   message: ${result.message}`);
+        if (result.data) console.log(`   data:    ${JSON.stringify(result.data, null, 2)}`);
+      } else {
+        printError(result);
+      }
+      break;
+    }
+    case 'publish': {
+      if (!opts.id) { console.error('❌ 需要 --id <versionId>'); process.exit(2); }
+      const result = await vm.publish(opts.id);
+      if (result.ok) console.log(`✅ 版本 ${opts.id} 已发布`);
+      else printError(result);
+      break;
+    }
+    case 'manifest': {
+      const action = opts.action || 'preview';
+      if (!opts.id) { console.error('❌ 需要 --id <versionId>'); process.exit(2); }
+      const result = action === 'generate'
+        ? await vm.generateManifest(opts.id)
+        : await vm.previewManifest(opts.id);
+      if (result.ok) {
+        console.log(`✅ Manifest ${action === 'generate' ? '已生成' : '预览'}：`);
+        console.log(JSON.stringify(result.data, null, 2));
+      } else printError(result);
+      break;
+    }
+    case 'summary': {
+      if (!opts.productKey) { console.error('❌ 需要 --product-key'); process.exit(2); }
+      const result = await vm.downloadSummary(opts.productKey);
+      if (result.ok) console.log(JSON.stringify(result.data, null, 2));
+      else printError(result);
+      break;
+    }
+    case 'health': {
+      const result = await vm.healthCheck();
+      if (result.ok) console.log(`✅ Download-assets 服务健康: ${result.message}`);
+      else printError(result);
+      break;
+    }
+    case 'release': {
+      // 一键完整流程：整理字段 + POST 创建 + 同步 S3
+      if (!opts.version) { console.error('❌ 需要 --version'); process.exit(2); }
+      const productKey = opts.productKey || 'clawdao';
+      const productId = opts.productId || KNOWN_PRODUCT_IDS[productKey];
+      if (!productId) { console.error(`❌ 未知 productKey "${productKey}"，请用 --product-id`); process.exit(2); }
+      const releaseNotes = opts.notes ? { zh: [opts.notes], en: [] } : undefined;
+      console.log(`🚀 一键发布流程`);
+      console.log(`   productKey: ${productKey}`);
+      console.log(`   version:    ${opts.version}`);
+      console.log(`   syncS3:     ${opts['no-sync'] ? '否' : '是'}`);
+      const result = await vm.release({
+        productKey,
+        productId,
+        version: opts.version,
+        title: opts.title,
+        releaseNotes,
+        isPrerelease: opts.prerelease === 'true',
+        syncS3: !opts['no-sync'],
+        s3Prefix: opts.prefix,
+        dryRun: opts.dryRun === 'true',
+      });
+      if (result.ok) {
+        console.log(`✅ 发布流程完成`);
+        for (const s of result.steps) console.log(`   [${s.ok ? '✓' : '✗'}] ${s.step}: ${s.message}`);
+        if (result.versionId) console.log(`   versionId: ${result.versionId}`);
+      } else {
+        console.error(`❌ 发布流程失败于某个环节`);
+        for (const s of result.steps) console.error(`   [${s.ok ? '✓' : '✗'}] ${s.step}: ${s.message}`);
+        printError(result);
+      }
+      break;
+    }
+    case 'remove':
+    case 'rm': {
+      if (!opts.id) { console.error('❌ 需要 --id'); process.exit(2); }
+      const result = opts.force === 'true'
+        ? await vm.removeForce(opts.id)
+        : await vm.remove(opts.id);
+      if (result.ok) console.log(`✅ 版本 ${opts.id} 已删除${opts.force === 'true' ? '（硬删）' : ''}`);
+      else printError(result);
+      break;
+    }
+    default:
+      console.log(`
+产品版本发布（jzd version）：
+
+  jzd version list                       列出版本（--product-key clawdao）
+  jzd version get --id <uuid>            版本详情
+  jzd version create                     创建版本
+       --product-key clawdao --version 1.0.27
+       --notes '<h2>v1.0.27 更新说明</h2>...' （HTML 字符串）
+       [--title '标题'] [--prerelease true]
+  jzd version release                    一键发布（创建 + 同步 S3）
+       --product-key clawdao --version 1.0.27
+       --notes '...' [--no-sync]
+  jzd version sync-s3                    同步 S3 资产到版本（“同步s3”按钮）
+       --product-key clawdao --version 1.0.27
+       [--prefix path/] [--dryRun true]
+  jzd version publish --id <uuid>        发布版本
+  jzd version manifest --id <uuid>       Manifest 预览（--action generate 生成）
+  jzd version summary --product-key X    发布摘要
+  jzd version health                     Download-assets 健康检查
+  jzd version remove --id <uuid>         删除（--force 硬删）
+
+已知 productKey：${Object.keys(KNOWN_PRODUCT_IDS).join(', ')}
+`);
+  }
+}
+
 // ===== 工具函数 =====
+
+function printListResult(result, title, formatter) {
+  if (!result.ok) { printError(result); return; }
+  const items = result.items || [];
+  console.log(`\n📋 ${title}列表（${result.total || items.length} 项）:\n`);
+  if (items.length === 0) { console.log('  （空）\n'); return; }
+  for (const item of items) console.log(formatter(item));
+  if (result.totalPages && result.totalPages > 1) {
+    console.log(`\n  📄 页 ${result.page || 1} / ${result.totalPages}（每页 ${result.pageSize || items.length}）`);
+  }
+  console.log();
+}
+
+function printDetailResult(result, title, formatter) {
+  if (!result.ok) { printError(result); return; }
+  console.log(`\n📦 ${title}详情：\n`);
+  if (typeof result.data === 'object' && result.data !== null) {
+    console.log(formatter(result.data));
+  }
+  console.log();
+}
 
 function printError(result) {
   console.error(`\n❌ 操作失败:`);

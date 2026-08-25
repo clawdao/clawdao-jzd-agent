@@ -7,8 +7,11 @@
     "jzd": "./bin/jzd.mjs"
   },
   "scripts": {
-    "start": "node ./bin/jzd-ops.mjs",
+    "start": "node ./bin/jzd.mjs",
+    "jzd": "node ./bin/jzd.mjs",
     "test": "node --test",
+    "test:smoke": "node tests/smoke.mjs",
+    "lint": "node --check bin/jzd.mjs && node --check lib/*.mjs",
     "pack:dry-run": "npm pack --dry-run"
   },
   "engines": {

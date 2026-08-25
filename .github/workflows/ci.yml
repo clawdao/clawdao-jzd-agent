@@ -1,0 +1,45 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  smoke:
+    name: Smoke Tests (Node ≥ 18)
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+      - name: Install
+        run: npm install --no-audit --no-fund
+      - name: Syntax check (lib + bin)
+        run: |
+          for f in bin/*.mjs lib/*.mjs; do
+            node --check "$f" && echo "✓ $f"
+          done
+      - name: Smoke test
+        run: npm run test:smoke
+
+  secrets-scan:
+    name: Secret Scan (prevent leak)
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Scan for hardcoded secrets
+        run: |
+          # 简单硬编码密钥扫描（与本地一致）
+          if grep -rE "AKLT[A-Za-z0-9]{16,}|sk-cp-[A-Za-z0-9]{20,}|jzd_[A-Za-z0-9]{20,}|Bearer [A-Za-z0-9]{32,}" \
+               bin lib scripts 2>/dev/null; then
+            echo "❌ Hardcoded secrets detected"
+            exit 1
+          fi
+          echo "✓ No hardcoded secrets found"
