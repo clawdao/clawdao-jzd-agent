@@ -160,6 +160,24 @@ try {
   const esc = escapeHtml('<script>alert("xss")</script>');
   if (esc.includes('&lt;script&gt;') && !esc.includes('<script>')) ok('escapeHtml 防 XSS');
   else fail('escapeHtml', esc);
+
+  // normalizeReleaseNotes 5 种输入
+  const { normalizeReleaseNotes } = await import('../lib/versions.mjs');
+  const cases = [
+    ['MD string → HTML', '# Hi', '<h2>Hi</h2>'],
+    ['HTML string 不变', '<h2>Hi</h2>', '<h2>Hi</h2>'],
+    ['{zh,en} 提取 zh', { zh: ['<h2>X</h2>'], en: [] }, '<h2>X</h2>'],
+    ['null → 空', null, ''],
+    ['array → join', ['<h2>X</h2>'], '<h2>X</h2>'],
+  ];
+  let normalizePass = 0;
+  for (const [name, input, expected] of cases) {
+    const got = normalizeReleaseNotes(input);
+    if (got === expected) { normalizePass++; }
+    else console.log(`     [normalize] ${name}: 期望 ${JSON.stringify(expected)}, 实际 ${JSON.stringify(got)}`);
+  }
+  if (normalizePass === cases.length) ok(`normalizeReleaseNotes 5 种输入`);
+  else fail('normalizeReleaseNotes', `${normalizePass}/${cases.length} pass`);
 } catch (e) { fail('mdToHtml 测试', e); }
 
 // 总结
