@@ -116,6 +116,52 @@ try {
   else fail('release validation', '应拒绝');
 } catch (e) { fail('release validation', e); }
 
+// mdToHtml 转换器
+try {
+  const { mdToHtml, buildZhNotesFromMd, escapeHtml } = await import('../lib/versions.mjs');
+  const md = `# 一级标题
+## 二级标题
+### 三级标题
+这是普通段落包含 **加粗** 和 *斜体* 和 \`代码\`。
+
+> 这是一个 blockquote。
+
+- item 1
+- item 2
+  - nested（不支持但不会崩溃）
+
+1. ordered 1
+2. ordered 2
+
+| 列1 | 列2 |
+|-----|-----|
+| a   | b   |
+| c   | d   |
+
+---`;
+  const html = mdToHtml(md);
+  const required = ['<h2>', '<h3>', '<h4>', '<strong>', '<em>', '<code>', '<blockquote>', '<ul>', '<ol>', '<table>', '<hr'];
+  const missing = required.filter((tag) => !html.includes(tag));
+  if (missing.length === 0) ok(`mdToHtml 覆盖 11 种语法（h2/h3/h4/strong/em/code/bq/ul/ol/table/hr）`);
+  else fail('mdToHtml 覆盖', `缺失: ${missing.join(',')}`);
+
+  // HTML 字符串不应该被转换
+  const rawHtml = '<h2>v1.0.26 更新说明</h2><p>已有 html</p>';
+  const passthrough = buildZhNotesFromMd(rawHtml);
+  if (passthrough[0] === rawHtml) ok('buildZhNotesFromMd 识别 HTML 不转');
+  else fail('buildZhNotesFromMd HTML', passthrough[0]);
+
+  // MD 字符串应该转换
+  const fromMd = buildZhNotesFromMd('## Hello');
+  if (fromMd[0].includes('<h3>')) ok('buildZhNotesFromMd MD→HTML');
+  else fail('buildZhNotesFromMd MD', fromMd[0]);
+
+  // escapeHtml 不出错
+  const esc = escapeHtml('<script>alert("xss")</script>');
+  if (esc.includes('&lt;script&gt;') && !esc.includes('<script>')) ok('escapeHtml 防 XSS');
+  else fail('escapeHtml', esc);
+} catch (e) { fail('mdToHtml 测试', e); }
+
 // 总结
 console.log(`\n${failed === 0 ? '🎉' : '⚠️'}  ${passed} passed, ${failed} failed`);
 process.exit(failed === 0 ? 0 : 1);
