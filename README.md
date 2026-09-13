@@ -14,6 +14,7 @@
 | 📚 **课程管理** | 上传 / 列表 / 发布 / 分类管理 |
 | 🧩 **应用市场** | 浏览 / 统计市场资产、上架应用、编辑资产、状态与精选管理（`marketplace` 命令） |
 | 💬 **反馈提交** | 建议 / 问题报告 / 功能请求 |
+| 🖼️ **素材上传** | 图片 / 视频 / 文件一键上传到觉知岛素材库（`upload` 命令） |
 | 🔍 **健康检查** | API 连接状态诊断 |
 
 ## 🔐 凭证配置（安全）
@@ -76,7 +77,15 @@ jzd marketplace publish <uuid>               # 上架
 
 # 反馈
 jzd feedback submit --title "建议" --content "详情"
+
+# 素材上传（图片/视频/文件）
+jzd upload --check                                # 健康检查
+jzd upload ./cover.png                            # 上传单张图片
+jzd upload ./a.png ./b.png --type image           # 批量（自动去重）
+jzd upload ./cover.png --json                     # JSON 输出（jq / 脚本拼装）
+jzd upload ./a.png ./b.png --json-only            # 仅输出 URL 列表（每行一个）
 ```
+
 
 ## 📁 目录结构
 
@@ -89,9 +98,12 @@ jzd feedback submit --title "建议" --content "详情"
 │   ├── articles.mjs          文章模块
 │   ├── courses.mjs           课程模块
 │   ├── marketplace.mjs       应用市场模块（列表/统计/上架/编辑）
+│   ├── materials.mjs         素材库模块（upload 子命令底层封装）
+│   ├── versions.mjs          产品版本发布模块（jzd version）
 │   └── feedback.mjs          反馈模块
 ├── scripts/
-│   └── export-ddn-env.mjs    从 ClawDao 同步凭证到 .env（掩码输出）
+│   ├── export-ddn-env.mjs    从 ClawDao 同步凭证到 .env（掩码输出）
+│   └── publisher.mjs         markdown + 本地图片一键发布器（复用 MaterialManager）
 ├── .env                      API 凭证（已忽略入库）
 └── .gitignore                密钥 / 依赖 / 日志忽略规则
 ```

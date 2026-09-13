@@ -12,7 +12,7 @@
  */
 
 import { readFileSync, existsSync } from 'fs';
-import { resolve, dirname } from 'path';
+import { resolve, dirname, basename } from 'path';
 import { fileURLToPath } from 'url';
 
 /** 零依赖 .env 加载器：项目根 .env → process.env（仅补缺失项，不覆盖已存在的环境变量） */
@@ -37,6 +37,7 @@ import { CourseManager } from '../lib/courses.mjs';
 import { FeedbackManager } from '../lib/feedback.mjs';
 import { MarketplaceManager, ASSET_TYPES, ASSET_TYPE_LABELS, ASSET_STATUSES, PRICE_TYPE_LABELS } from '../lib/marketplace.mjs';
 import { VersionManager, KNOWN_PRODUCT_IDS } from '../lib/versions.mjs';
+import { MaterialManager, MATERIAL_TYPES, MATERIAL_TYPE_LABELS } from '../lib/materials.mjs';
 
 const COMMANDS = {
   article: '文章管理：list, create, publish, delete',
@@ -44,6 +45,7 @@ const COMMANDS = {
   feedback: '提交反馈或查看反馈列表',
   marketplace: '应用市场：list, stats, get, create, update, publish, remove, categories',
   version: '产品版本发布：list, get, create, release, sync-s3, publish, manifest, remove, summary, health',
+  upload: '上传素材（图片/视频/文件）到觉知岛素材库',
   health: '检查 API 服务状态',
 };
 
@@ -94,6 +96,11 @@ function printUsage() {
   version health       Download-assets 健康检查
   version remove       <uuid> 删除版本（--force 硬删）
 
+  upload <file>...    上传一个或多个本地文件到素材库
+                       --type image|video|file（默认 image）
+                       --json        输出机器可读 JSON（供脚本拼装）
+                       --json-only   仅输出 URL（每行一个）
+
   health              检查 API 连接
 
 环境变量:
@@ -110,6 +117,9 @@ function printUsage() {
   jzd course list
   jzd course create --title "课程名"
   jzd feedback submit --title "建议" --content "详情"
+  jzd upload ./cover.png              # 上传单张图片
+  jzd upload ./a.png ./b.png          # 批量上传（去重）
+  jzd upload ./a.png --json           # JSON 输出（拼装给 --images 用）
 `);
 }
 
@@ -165,6 +175,9 @@ async function main() {
       break;
     case 'version':
       await handleVersion(args.slice(1));
+      break;
+    case 'upload':
+      await handleUpload(args.slice(1));
       break;
     case 'health':
       await handleHealth();
@@ -812,6 +825,91 @@ async function handleVersion(args) {
   }
 }
 
+// ===== 素材上传 =====
+
+async function handleUpload(args) {
+  // 支持两种调用形态：
+  //   jzd upload <file1> [file2 ...] [--type image] [--json] [--json-only] [--filename <name>]
+  //   jzd upload --check                 （仅健康检查）
+  const opts = parseArgs(args);
+  const files = [];
+  for (const a of args) {
+    if (a.startsWith('--')) break;
+    files.push(a);
+  }
+
+  const mm = new MaterialManager(getClient());
+
+  // 健康检查模式
+  if (opts.check === true || opts.check === 'true') {
+    const h = mm.health();
+    console.log(`\n🩺 素材上传健康检查\n`);
+    if (h.ok) {
+      console.log(`  ✅ ${h.message}`);
+      console.log(`  baseUrl: ${h.config.baseUrl}`);
+      console.log(`  auth:    ${h.config.hasAuthToken ? '已设置' : '❌'}`);
+      console.log(`  dao:     ${h.config.hasDaoId ? h.config.daoId : '❌'}`);
+    } else {
+      console.log(`  ❌ ${h.message}`);
+    }
+    console.log();
+    process.exit(h.ok ? 0 : 1);
+  }
+
+  if (files.length === 0) {
+    console.error(`❌ 请指定要上传的文件路径，例如: jzd upload ./cover.png`);
+    console.error(`   支持 image / video / file，通过 --type 选择（默认 image）`);
+    console.error(`   可选 --json 输出结构化结果，--json-only 仅输出 URL 列表`);
+    process.exit(2);
+  }
+
+  const type = (typeof opts.type === 'string' && opts.type) || 'image';
+  if (!MATERIAL_TYPES.includes(type)) {
+    console.error(`❌ --type 必须是 ${MATERIAL_TYPES.join(' / ')}`);
+    process.exit(2);
+  }
+
+  const wantJson = opts.json === true || opts.json === 'true';
+  const wantJsonOnly = opts['json-only'] === true || opts['json-only'] === 'true';
+
+  // 批量上传（自动去重）
+  const result = await mm.uploadBatch(files, { type });
+
+  if (wantJsonOnly) {
+    // 仅打印 URL，每行一个；失败时按 stderr 输出，最后用退出码区分
+    for (const url of result.map.values()) console.log(url);
+    for (const f of result.failures) console.error(`❌ ${f.path}: ${f.message}`);
+    process.exit(result.failures.length === 0 ? 0 : 1);
+  }
+
+  if (wantJson) {
+    // JSON 输出（含 ok + map + failures），便于 jq 处理或脚本拼装
+    const payload = {
+      ok: result.ok,
+      message: result.message,
+      type,
+      count: result.map.size,
+      files: Array.from(result.map.entries()).map(([path, url]) => ({ path, url })),
+      failures: result.failures,
+    };
+    console.log(JSON.stringify(payload, null, 2));
+    process.exit(result.ok ? 0 : 1);
+  }
+
+  // 人类可读输出
+  console.log(`\n📤 素材上传（type=${type}）\n`);
+  for (const [path, url] of result.map.entries()) {
+    console.log(`  ✅ ${basename(path)}`);
+    console.log(`     ${path}`);
+    console.log(`     → ${url}\n`);
+  }
+  for (const f of result.failures) {
+    console.log(`  ❌ ${basename(f.path)}: ${f.message}`);
+  }
+  console.log(`  ${result.message}\n`);
+  process.exit(result.ok ? 0 : 1);
+}
+
 // ===== 工具函数 =====
 
 function printListResult(result, title, formatter) {
@@ -840,7 +938,10 @@ function printError(result) {
   if (result.error) {
     console.error(`   类型: ${result.error.kind}`);
   }
-  console.error(`   消息: ${result.message}`);
+  // ★ 修复：message 为 undefined 时给出有意义兜底，而不是打印 'undefined'
+  const msg = result.message || result.error?.message || '(未提供错误消息)';
+  console.error(`   消息: ${msg}`);
+  if (result.statusCode) console.error(`   HTTP 状态码: ${result.statusCode}`);
   console.error();
 }
 

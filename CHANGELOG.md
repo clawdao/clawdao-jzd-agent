@@ -8,6 +8,13 @@
 ## [Unreleased]
 
 ### 新增
+- 🆕 **素材上传功能（`jzd upload`）**：
+  - `lib/materials.mjs` 新模块，封装 `MaterialManager`（基于已验证的 `POST /api/v1/material/files/upload`）
+  - CLI 子命令 `jzd upload <file>...`：单/批量上传、自动去重、支持 image/video/file
+  - 三种输出模式：人类可读、`--json`（结构化）、`--json-only`（每行一个 URL，脚本友好）
+  - `jzd upload --check` 健康检查（无需真实文件）
+  - `scripts/publisher.mjs` 重构：删除内联 multipart 代码，改用 `MaterialManager.uploadBatch()`，自动去重 + 错误聚合
+  - 删除 `tmp/probe_upload{2..9}.mjs`：8 次路径猜测已沉淀为正式 API（`probe_upload9` 即正解），保留 `tmp/outputs/` 排除目录
 - 🆕 **产品版本发布功能（`jzd version`）**：
   - `lib/versions.mjs` 完整模块，封装 DDN Hub 产品版本 API（15+ 端点）
   - CLI 子命令：`list / get / create / release / sync-s3 / publish / manifest / summary / health / remove`
@@ -20,8 +27,13 @@
 ### 修复
 - `package.json` 的 `"start": "node ./bin/jzd-ops.mjs"` —— 文件不存在！修正为 `./bin/jzd.mjs`
 
+### 清理
+- 🗑️ 删除 8 个 `tmp/probe_upload{2..9}.mjs`：曾经手工探查上传接口路径的试错脚本。已找到正解（`/api/v1/material/files/upload`）并封装为 `MaterialManager`，无需再保留一次性探针。
+- `bin/jzd.mjs` import 列表新增 `basename` 工具（`handleUpload` 用到）
+
 ### 改进
 - README 待更新（新增 version 模块使用示例）—— **本变更日志已记录**
+- README 已补充 `jzd upload` / `MaterialManager` / `scripts/publisher.mjs` 的使用示例
 
 ## [0.1.0] - 2026-08-17
 

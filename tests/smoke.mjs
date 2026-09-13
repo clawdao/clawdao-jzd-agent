@@ -15,6 +15,7 @@ import { CourseManager } from '../lib/courses.mjs';
 import { FeedbackManager } from '../lib/feedback.mjs';
 import { MarketplaceManager } from '../lib/marketplace.mjs';
 import { VersionManager, KNOWN_PRODUCT_IDS, emptyReleaseNotes, buildZhNotes } from '../lib/versions.mjs';
+import { MaterialManager, MATERIAL_TYPES } from '../lib/materials.mjs';
 
 let passed = 0;
 let failed = 0;
@@ -38,6 +39,7 @@ try { CourseManager; ok('CourseManager 加载'); } catch (e) { fail('CourseManag
 try { FeedbackManager; ok('FeedbackManager 加载'); } catch (e) { fail('FeedbackManager', e); }
 try { MarketplaceManager; ok('MarketplaceManager 加载'); } catch (e) { fail('MarketplaceManager', e); }
 try { VersionManager; ok('VersionManager 加载'); } catch (e) { fail('VersionManager', e); }
+try { MaterialManager; ok('MaterialManager 加载'); } catch (e) { fail('MaterialManager', e); }
 
 // 2. 工具函数
 console.log('\n[2/4] 工具函数');
@@ -115,6 +117,66 @@ try {
   if (!r.ok && r.error && r.error.kind === 'validation') ok('release 拒绝空 productKey');
   else fail('release validation', '应拒绝');
 } catch (e) { fail('release validation', e); }
+
+// MaterialManager 健康检查（不调网络）
+try {
+  const mm = new MaterialManager({ baseUrl: 'http://localhost', authToken: 'tok', daoId: 'dao-1' });
+  const h = mm.health();
+  if (h.ok && h.config.baseUrl === 'http://localhost') ok('MaterialManager.health() 通过（baseUrl + token + dao）');
+  else fail('MaterialManager.health()', h);
+} catch (e) { fail('MaterialManager.health()', e); }
+
+try {
+  const mm = new MaterialManager({ baseUrl: 'not-valid' }); // 缺 token & dao
+  const h = mm.health();
+  if (!h.ok && /token|DAO/i.test(h.message)) ok('MaterialManager.health() 缺凭证时返回 ok:false');
+  else fail('MaterialManager.health() missing-creds', h);
+} catch (e) { fail('MaterialManager.health() missing-creds', e); }
+
+// MATERIAL_TYPES 常量
+try {
+  const expected = ['image', 'video', 'file'];
+  const got = MATERIAL_TYPES.slice().sort();
+  if (expected.every((x) => got.includes(x))) ok('MATERIAL_TYPES = image/video/file');
+  else fail('MATERIAL_TYPES', `got ${got.join(',')}`);
+} catch (e) { fail('MATERIAL_TYPES', e); }
+
+// uploadBatch 不传路径应得到空 map + ok（不调网络）
+try {
+  const mm = new MaterialManager({ baseUrl: 'http://localhost', authToken: 't', daoId: 'd' });
+  const r = await mm.uploadBatch([], { type: 'image' });
+  if (r.ok && r.map.size === 0 && r.failures.length === 0) ok('uploadBatch([]) 空输入返回 ok + 空 map');
+  else fail('uploadBatch([])', r);
+} catch (e) { fail('uploadBatch([])', e); }
+
+// upload 不存在文件 → not_found 错误（不调网络）
+try {
+  const mm = new MaterialManager({ baseUrl: 'http://localhost', authToken: 't', daoId: 'd' });
+  const r = await mm.upload('/nonexistent/__no_such_file__.png');
+  if (!r.ok && r.error && r.error.kind === 'not_found') ok('upload() 不存在文件 → not_found（不调网络）');
+  else fail('upload() not_found', r);
+} catch (e) { fail('upload() not_found', e); }
+
+// upload 文件为空 → invalid_input（创建 0 字节文件）
+try {
+  const fs = await import('fs');
+  const tmpPath = '/tmp/__jzd_smoke_empty_' + Date.now() + '.png';
+  fs.writeFileSync(tmpPath, '');
+  try {
+    const mm = new MaterialManager({ baseUrl: 'http://localhost', authToken: 't', daoId: 'd' });
+    const r = await mm.upload(tmpPath);
+    if (!r.ok && r.error && r.error.kind === 'invalid_input') ok('upload() 空文件 → invalid_input（不调网络）');
+    else fail('upload() empty file', r);
+  } finally {
+    try { fs.unlinkSync(tmpPath); } catch {}
+  }
+} catch (e) { fail('upload() empty file', e); }
+
+// upload 非法 type 应被 MATERIAL_TYPES 拦截（不调网络）
+try {
+  if (!MATERIAL_TYPES.includes('weird')) ok('MATERIAL_TYPES 拒绝非法 type 值');
+  else fail('MATERIAL_TYPES guard', '应不含 weird');
+} catch (e) { fail('MATERIAL_TYPES guard', e); }
 
 // mdToHtml 转换器
 try {
