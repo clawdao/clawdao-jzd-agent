@@ -3,7 +3,7 @@
  * scripts/export-ddn-env.mjs — 从 ClawDao 桌面应用同步觉知岛凭证到 .env
  *
  * 数据源：~/Library/Application Support/net.ddn.clawdao/store.bin
- *   auth_state.ddnHub.{ authToken, baseUrl, daoId, daoName, username }
+ *   auth_state.ddnHub.{ authToken, platformToken, baseUrl, daoId, daoName, username, roleLabel }
  *
  * 安全说明：
  *   - 不向终端打印 token 明文（只显示掩码如 "jwt_***3ab"）
@@ -12,6 +12,7 @@
  *
  * 用法：node scripts/export-ddn-env.mjs [--force]
  */
+
 import { readFileSync, writeFileSync, existsSync, chmodSync } from 'fs';
 import { resolve } from 'path';
 import { homedir } from 'os';
@@ -56,10 +57,14 @@ function load() {
   return {
     storePath,
     authToken: String(hub.authToken),
+    // ★ platformToken 用于 platform/versions 等平台级端点
+    //    仅 platform admin 账号的 store.bin 才有此字段
+    platformToken: hub.platformToken ? String(hub.platformToken) : '',
     baseUrl: String(hub.baseUrl || 'https://ddn.net'),
     daoId: String(hub.daoId || ''),
     daoName: String(hub.daoName || ''),
     username: String(hub.username || ''),
+    roleLabel: String(hub.roleLabel || ''),
   };
 }
 
@@ -77,6 +82,12 @@ try {
     `DDN_HUB_AUTH_TOKEN=${info.authToken}`,
     info.daoId ? `DDN_HUB_DAO_ID=${info.daoId}` : '# DDN_HUB_DAO_ID=（store 中无 daoId，可手动补充）',
   ];
+  // ★ platform token（可选）— 仅 platform admin 登录时才会有
+  if (info.platformToken) {
+    lines.push(`DDN_HUB_PLATFORM_TOKEN=${info.platformToken}`);
+  } else {
+    lines.push('# DDN_HUB_PLATFORM_TOKEN=（store 中无 platformToken，当前账号可能不是 platform admin）');
+  }
   writeFileSync(ENV_PATH, lines.join('\n') + '\n', { mode: 0o600 });
   try { chmodSync(ENV_PATH, 0o600); } catch { /* best-effort */ }
   console.log('✅ 已写入 .env（权限 600）');
@@ -84,7 +95,12 @@ try {
   console.log(`   baseUrl: ${info.baseUrl}`);
   console.log(`   authToken: ${mask(info.authToken)}（已掩码，未明文输出）`);
   console.log(`   daoId: ${info.daoId || '(空)'}（${info.daoName || ''}）`);
-  console.log(`   登录账号: ${info.username || '(空)'}`);
+  console.log(`   登录账号: ${info.username || '(空)'}（${info.roleLabel || '无角色'}）`);
+  if (info.platformToken) {
+    console.log(`   platformToken: ${mask(info.platformToken)}（已掩码，platform admin）`);
+  } else {
+    console.log(`   platformToken: ❌ 无（store 中无此字段）`);
+  }
 } catch (e) {
   console.error(`❌ ${e.message}`);
   process.exit(1);

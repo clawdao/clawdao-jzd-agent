@@ -9,3 +9,11 @@ node_modules/
 # 日志与临时
 *.log
 .DS_Store
+
+# LLM 探查 / 跑任务产生的运行产物（保留本地，不入库）
+# tmp/       — 一次性探针脚本、调试报告
+# output/    — 发布说明草稿、版本快照
+# outputs/   — 图片/视频/扫描报告等任务产物
+tmp
+output
+outputs
