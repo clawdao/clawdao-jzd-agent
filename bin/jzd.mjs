@@ -220,11 +220,21 @@ async function handleArticle(args) {
     }
     case 'create': {
       if (!opts.title) return console.error('❌ 请指定 --title');
+      let extraData;
+      try { if (opts.extraData) extraData = JSON.parse(opts.extraData); }
+      catch (e) { return console.error('❌ --extra-data 必须是合法 JSON: ' + e.message); }
+      let tags;
+      if (opts.tags) tags = opts.tags.split(',').map(s => s.trim()).filter(Boolean);
       const result = await article.create({
         title: opts.title,
         content: opts.content || opts.body,
         postType: opts.postType || 'article',
         summary: opts.summary,
+        description: opts.description,
+        categoryId: opts.categoryId ? parseInt(opts.categoryId, 10) : undefined,
+        tags,
+        coverImage: opts.coverImage,
+        extraData,
         body: opts.body,
       });
       if (!result.ok) return printError(result);
@@ -246,11 +256,21 @@ async function handleArticle(args) {
     case 'upload': {
       if (!opts.title) return console.error('❌ 请指定 --title');
       const shouldPublish = opts.publish === true || opts.publish === 'true';
+      let extraData;
+      try { if (opts.extraData) extraData = JSON.parse(opts.extraData); }
+      catch (e) { return console.error('❌ --extra-data 必须是合法 JSON: ' + e.message); }
+      let tags;
+      if (opts.tags) tags = opts.tags.split(',').map(s => s.trim()).filter(Boolean);
       const result = await article.upload({
         title: opts.title,
         content: opts.content || opts.body,
         postType: opts.postType || 'article',
         summary: opts.summary,
+        description: opts.description,
+        categoryId: opts.categoryId ? parseInt(opts.categoryId, 10) : undefined,
+        tags,
+        coverImage: opts.coverImage,
+        extraData,
         publish: shouldPublish,
       });
       if (!result.ok) return printError(result);
@@ -265,9 +285,13 @@ async function handleArticle(args) {
       console.error(`
 文章管理子命令:
   jzd article list [--postType article] [--status draft] [--search keyword]
-  jzd article create --title "标题" [--content "内容"] [--postType article]
+  jzd article create --title "标题" [--content "内容"] [--postType article] \
+                   [--description "简介"] [--tags "a,b,c"] [--cover-image URL] \
+                   [--category-id 12] [--extra-data '{"category":"模型","subcategory":"指南"}']
   jzd article publish <postId>
-  jzd article upload --title "标题" --content "内容" [--publish]
+  jzd article upload --title "标题" --content "内容" [--publish] \
+                   [--description "简介"] [--tags "a,b,c"] [--cover-image URL] \
+                   [--category-id 12] [--extra-data '{"category":"模型","subcategory":"指南"}']
 `);
   }
 }

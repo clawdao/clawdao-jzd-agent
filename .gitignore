@@ -17,3 +17,6 @@ node_modules/
 tmp
 output
 outputs
+
+# ClawDao 上传的临时附件（图片/文件等）
+.clawdao-uploads/
