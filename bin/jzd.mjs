@@ -31,8 +31,18 @@ try {
   }
 } catch { /* .env 缺失或不可读时忽略，直接使用环境变量 */ }
 
+/** 从本地文件读取文章正文；失败时抛出友好错误 */
+function readContentFile(p) {
+  const abs = resolve(process.cwd(), p);
+  try {
+    return readFileSync(abs, 'utf-8');
+  } catch (e) {
+    throw new Error(`❌ --content-file 读取失败: ${abs}\n   ${e.message}`);
+  }
+}
+
 import { JzdClient } from '../lib/client.mjs';
-import { ArticleManager } from '../lib/articles.mjs';
+import { ArticleManager, POST_TYPES, POST_TYPE_LABELS, DEFAULT_POST_TYPE } from '../lib/articles.mjs';
 import { CourseManager } from '../lib/courses.mjs';
 import { FeedbackManager } from '../lib/feedback.mjs';
 import { MarketplaceManager, ASSET_TYPES, ASSET_TYPE_LABELS, ASSET_STATUSES, PRICE_TYPE_LABELS } from '../lib/marketplace.mjs';
@@ -110,8 +120,8 @@ function printUsage() {
 
 示例:
   jzd health
-  jzd article list --postType article
-  jzd article create --title "标题" --content "内容"
+  jzd article list --postType news
+  jzd article create --title "标题" --content "内容" --postType news
   jzd article publish 42
   jzd article upload --title "T" --content "C" --publish
   jzd course list
@@ -202,6 +212,10 @@ async function handleArticle(args) {
 
   switch (sub) {
     case 'list': {
+      // ★ postType 白名单校验（仅当用户显式传了值时）
+      if (opts.postType && !POST_TYPES.includes(opts.postType)) {
+        return console.error(`❌ --postType "${opts.postType}" 不合法。合法值：${POST_TYPES.map((t) => `${t}(${POST_TYPE_LABELS[t]})`).join(' / ')}`);
+      }
       const result = await article.list({
         postType: opts.postType,
         status: opts.status,
@@ -212,14 +226,20 @@ async function handleArticle(args) {
       if (!result.ok) return printError(result);
       console.log(`\n📄 文章列表 (共 ${result.total} 篇):\n`);
       for (const item of (result.items || [])) {
+        const ptLabel = POST_TYPE_LABELS[item.postType] || item.postType || '未分类';
         console.log(`  [${item.id}] ${item.title || '(无标题)'}`);
-        console.log(`        类型: ${item.postType} | 状态: ${item.status} | 更新: ${item.updatedAt || '-'}`);
+        console.log(`        类型: ${ptLabel} | 状态: ${item.status} | 更新: ${item.updatedAt || '-'}`);
         console.log();
       }
       break;
     }
     case 'create': {
       if (!opts.title) return console.error('❌ 请指定 --title');
+      // ★ postType 白名单校验（ddn-hub 升级后只有 news / help / article）
+      const createPostType = opts.postType || DEFAULT_POST_TYPE;
+      if (!POST_TYPES.includes(createPostType)) {
+        return console.error(`❌ --postType "${opts.postType}" 不合法。合法值：${POST_TYPES.map((t) => `${t}(${POST_TYPE_LABELS[t]})`).join(' / ')}`);
+      }
       let extraData;
       try { if (opts.extraData) extraData = JSON.parse(opts.extraData); }
       catch (e) { return console.error('❌ --extra-data 必须是合法 JSON: ' + e.message); }
@@ -228,7 +248,8 @@ async function handleArticle(args) {
       const result = await article.create({
         title: opts.title,
         content: opts.content || opts.body,
-        postType: opts.postType || 'article',
+        contentMarkdown: opts.contentFile ? readContentFile(opts.contentFile) : undefined,
+        postType: createPostType,
         summary: opts.summary,
         description: opts.description,
         categoryId: opts.categoryId ? parseInt(opts.categoryId, 10) : undefined,
@@ -241,7 +262,7 @@ async function handleArticle(args) {
       const id = result.data?.id;
       console.log(`\n✅ 草稿已创建 (ID: ${id})`);
       console.log(`   标题: ${opts.title}`);
-      console.log(`   类型: ${opts.postType || 'article'}`);
+      console.log(`   类型: ${createPostType} (${POST_TYPE_LABELS[createPostType]})`);
       console.log(`   发布: jzd article publish ${id}\n`);
       break;
     }
@@ -255,6 +276,11 @@ async function handleArticle(args) {
     }
     case 'upload': {
       if (!opts.title) return console.error('❌ 请指定 --title');
+      // ★ postType 白名单校验（ddn-hub 升级后只有 news / help / article）
+      const uploadPostType = opts.postType || DEFAULT_POST_TYPE;
+      if (!POST_TYPES.includes(uploadPostType)) {
+        return console.error(`❌ --postType "${opts.postType}" 不合法。合法值：${POST_TYPES.map((t) => `${t}(${POST_TYPE_LABELS[t]})`).join(' / ')}`);
+      }
       const shouldPublish = opts.publish === true || opts.publish === 'true';
       let extraData;
       try { if (opts.extraData) extraData = JSON.parse(opts.extraData); }
@@ -264,7 +290,8 @@ async function handleArticle(args) {
       const result = await article.upload({
         title: opts.title,
         content: opts.content || opts.body,
-        postType: opts.postType || 'article',
+        contentMarkdown: opts.contentFile ? readContentFile(opts.contentFile) : undefined,
+        postType: uploadPostType,
         summary: opts.summary,
         description: opts.description,
         categoryId: opts.categoryId ? parseInt(opts.categoryId, 10) : undefined,
@@ -277,6 +304,7 @@ async function handleArticle(args) {
       console.log(`\n✅ ${result.message}`);
       if (result.data?.postId) {
         console.log(`   ID: ${result.data.postId}`);
+        console.log(`   类型: ${uploadPostType} (${POST_TYPE_LABELS[uploadPostType]})`);
       }
       console.log();
       break;
@@ -284,14 +312,19 @@ async function handleArticle(args) {
     default:
       console.error(`
 文章管理子命令:
-  jzd article list [--postType article] [--status draft] [--search keyword]
-  jzd article create --title "标题" [--content "内容"] [--postType article] \
+  jzd article list [--postType ${POST_TYPES.join('|')}] [--status draft] [--search keyword]
+  jzd article create --title "标题" [--content "内容"|--content-file path] [--postType ${POST_TYPES.join('|')}] \
                    [--description "简介"] [--tags "a,b,c"] [--cover-image URL] \
                    [--category-id 12] [--extra-data '{"category":"模型","subcategory":"指南"}']
   jzd article publish <postId>
-  jzd article upload --title "标题" --content "内容" [--publish] \
+  jzd article upload --title "标题" [--content "内容"|--content-file path] [--publish] \
+                   [--postType ${POST_TYPES.join('|')}] \
                    [--description "简介"] [--tags "a,b,c"] [--cover-image URL] \
                    [--category-id 12] [--extra-data '{"category":"模型","subcategory":"指南"}']
+
+postType 取值（ddn-hub 升级后）:
+  ${POST_TYPES.map((t) => `  - ${t.padEnd(8)} ${POST_TYPE_LABELS[t]}`).join('\n')}
+  默认: ${DEFAULT_POST_TYPE}
 `);
   }
 }

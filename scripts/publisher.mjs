@@ -31,7 +31,7 @@ if (existsSync(ENV_PATH)) {
   }
 }
 
-const { ArticleManager } = await import('../lib/articles.mjs');
+const { ArticleManager, POST_TYPES, POST_TYPE_LABELS, DEFAULT_POST_TYPE } = await import('../lib/articles.mjs');
 const { MaterialManager } = await import('../lib/materials.mjs');
 const baseUrl = process.env.DDN_HUB_BASE_URL || 'https://ddn.net';
 const token = process.env.DDN_HUB_AUTH_TOKEN;
@@ -70,8 +70,9 @@ if (!mdFile) {
   console.error('  --subcategory "..."     默认 ""');
   console.error('  --difficulty beginner   默认 beginner');
   console.error('  --accessType public     默认 public');
-  console.error('  --postType article      默认 article');
+  console.error(`  --postType ${POST_TYPES.join('|')}      默认 ${DEFAULT_POST_TYPE} (${POST_TYPE_LABELS[DEFAULT_POST_TYPE]})`);
   console.error('  --draft                 仅创建草稿，不发布');
+  console.error(`postType 取值（ddn-hub 升级后）: ${POST_TYPES.map((t) => `${t}=${POST_TYPE_LABELS[t]}`).join(', ')}`);
   process.exit(1);
 }
 
@@ -81,9 +82,15 @@ const cfg = {
   subcategory: opts.subcategory || '',
   difficulty: opts.difficulty || 'beginner',
   accessType: opts.accessType || 'public',
-  postType: opts.postType || 'article',
+  postType: opts.postType || DEFAULT_POST_TYPE,
   draft: opts.draft === true,
 };
+
+// ★ 校验 postType 合法值（与 lib/articles.mjs 同源）
+if (!POST_TYPES.includes(cfg.postType)) {
+  console.error(`❌ --postType "${opts.postType}" 不合法。合法值：${POST_TYPES.map((t) => `${t}(${POST_TYPE_LABELS[t]})`).join(' / ')}`);
+  process.exit(1);
+}
 
 const mdPath = resolve(mdFile);
 if (!existsSync(mdPath)) {
